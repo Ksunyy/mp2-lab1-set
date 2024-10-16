@@ -237,6 +237,7 @@ TEST(TBitField, can_invert_bitfield)
   EXPECT_EQ(expNegBf, negBf);
 }
 
+
 TEST(TBitField, can_invert_large_bitfield)
 {
   const int size = 38;
