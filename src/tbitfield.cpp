@@ -9,9 +9,10 @@
 
 TBitField::TBitField(int len)
 {
-    if (len < 1) throw "bad value";
-    BitLen = len;                      
-    MemLen = BitLen/(sizeof(TELEM)*8) +1;
+    if (len < 0) throw "bad value";
+    BitLen = len;   
+    MemLen = BitLen / (sizeof(TELEM) * 8);
+    if ((len % (sizeof(TELEM) * 8)) != 0) MemLen++;
     pMem = new TELEM[MemLen];
     for (int i = 0; i < MemLen; ++i) {
         pMem[i] = 0;
@@ -42,7 +43,7 @@ int TBitField::GetMemIndex(const int n) const // индекс Мем для би
 TELEM TBitField::GetMemMask(const int n) const // битовая маска для бита n
 {
     TELEM res;
-    res = (TELEM(1)) << ((sizeof(TELEM) * 8) - n - 1);
+    res = TELEM(1) << ((sizeof(TELEM) * 8) - n - 1);
     return res;
 }
 
@@ -56,24 +57,25 @@ int TBitField::GetLength(void) const // получить длину (к-во б�
 void TBitField::SetBit(const int n) // установить бит
 {
     if ((n < 0) || (n > BitLen)) throw "bad value";
-    int num_block =GetMemIndex(n);
+    int num_block = GetMemIndex(n);
     int num_bit = n % (sizeof(TELEM) * 8);
-    pMem[num_block] = pMem[num_block] | GetMemMask(n);
+    pMem[num_block] = pMem[num_block] | GetMemMask(num_bit);
 }
 
 void TBitField::ClrBit(const int n) // очистить бит
 {
     if ((n < 0 )|| (n > BitLen)) throw "bad value";
     int num_block = GetMemIndex(n);
-    //int num_bit = n % (sizeof(TELEM) * 8);
-    pMem[num_block] = pMem[num_block] & (~GetMemMask(n));
+    int num_bit = n % (sizeof(TELEM) * 8);
+    pMem[num_block] = pMem[num_block] & (~GetMemMask(num_bit));
 }
 
 int TBitField::GetBit(const int n) const // получить значение бита
 {
     if (n < 0 || (n > BitLen)) throw "bad value";
     int num_block = GetMemIndex(n);
-    if ((pMem[num_block] & GetMemMask(n)) == 0) return 0 ;
+    int num = n % (sizeof(TELEM)*8);
+    if ((pMem[num_block] & GetMemMask(num)) == 0) return 0 ;
     else return 1;
 
 }
@@ -87,7 +89,7 @@ TBitField& TBitField::operator=(const TBitField& bf) // присваивание
     delete[] pMem;
     pMem = new TELEM[MemLen];
 
-    if (BitLen != bf.BitLen) throw "Different sizes";
+    //if (BitLen != bf.BitLen) throw "Different sizes";
 
     for (int i = 0; i < MemLen; i++)
         pMem[i] = bf.pMem[i];
@@ -95,12 +97,12 @@ TBitField& TBitField::operator=(const TBitField& bf) // присваивание
     return *this;;
 }
 
-int TBitField::operator==(const TBitField &bf) const // сравнение
+int TBitField::operator==(const TBitField&bf) const // сравнение
 {
     int chek = 1;
-    if (BitLen != bf.BitLen) return 0;
-    for (int i = 0; i < MemLen; ++i) {
-        if (pMem[i] != bf.pMem[i]) chek = 0;
+    if (BitLen != bf.BitLen) chek = 0;
+    for (int i = 0; i < BitLen; ++i) {
+        if (this->GetBit(i) != bf.GetBit(i)) chek = 0;
 
     }
     return chek;
@@ -114,10 +116,17 @@ int TBitField::operator!=(const TBitField &bf) const // сравнение
 TBitField TBitField::operator|(const TBitField &bf) // операция "или"
 {
     TBitField res(std::max(this->BitLen, bf.BitLen));
-    int mxMlen = std::max(this->MemLen, bf.MemLen);
-    for (int i = 0; i < mxMlen; ++i) {
-        if (i < mxMlen) res.pMem[i] = pMem[i] | bf.pMem[i];
+    int mnMlen = std::min(this->MemLen, bf.MemLen);
+    for (int i = 0; i < mnMlen; ++i) {
+        if (i < mnMlen) res.pMem[i] = pMem[i] | bf.pMem[i];
          } 
+    if (BitLen > bf.BitLen) {
+        for (int i = mnMlen; i < MemLen; ++i) res.pMem[i] = pMem[i];
+
+    }
+    else
+        for (int i = mnMlen; i < bf.MemLen; ++i) res.pMem[i] = bf.pMem[i];
+
 
     return res;
 
@@ -127,24 +136,28 @@ TBitField TBitField::operator&(const TBitField &bf) // операция "и"
 {
 
     TBitField res(std::max(this->BitLen, bf.BitLen));
-    int mxMlen = std::max(this->MemLen, bf.MemLen);
-    for (int i = 0; i < mxMlen; ++i) {
+    int mnMlen = std::min(this->MemLen, bf.MemLen);
+    for (int i = 0; i < mnMlen; ++i) {
         res.pMem[i] = pMem[i] & bf.pMem[i];
     }
+
     return res;
 }
 
 TBitField TBitField::operator~(void) // отрицание
 {
     TBitField res(BitLen);
-    for (int i = 0; i < MemLen; ++i) {
+    std::cout << *this << "\n";
+    for (int i = 0; i < res.MemLen; i++) {
         res.pMem[i] = ~pMem[i];
+        std::cout << res << "e4eg\n";
     }
-    for (int i = BitLen; i < MemLen*(sizeof(TELEM)*8); ++i) {
-        TELEM num_block = i / (sizeof(TELEM(i))*8);
-        TELEM num_bit = i % (sizeof(TELEM(i))*8);
+    for (int i = BitLen; i < (MemLen * (sizeof(TELEM) * 8)); ++i) {
+        TELEM num_block = i / (sizeof(TELEM(i)) * 8);
+        TELEM num_bit = i % (sizeof(TELEM(i)) * 8);
         res.pMem[num_block] = res.pMem[num_block] & ~GetMemMask(num_bit);
     }
+    std::cout << res << "\n";
 
     return res;
 }
